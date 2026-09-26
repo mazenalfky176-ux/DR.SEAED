@@ -1,0 +1,22 @@
+# Global headers for Cloudflare Pages
+/*
+  X-Frame-Options: DENY
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+
+# Disable aggressive caching for root and HTML files to avoid stale admin content
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
+# API routes must NEVER be cached by Cloudflare edge
+/api/*
+  Cache-Control: no-cache, no-store, must-revalidate
+
+# Static hashed assets can be cached aggressively
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
