@@ -3,6 +3,8 @@ export interface Environment {
     SUPABASE_URL?: string;
     SUPABASE_SERVICE_ROLE_KEY?: string;
     ADMIN_USER_ID?: string;
+    ADMIN_EMAIL?: string;
+    ADMIN_PASSWORD?: string;
     PUBLIC_SITE_URL?: string;
 }
 export interface ContentRow {
@@ -20,7 +22,6 @@ export interface Store {
     createSession(hash: string, userId: string, expiresAt: string): Promise<void>;
     readSession(hash: string): Promise<AuthSession | null>;
     deleteSession(hash: string): Promise<void>;
-    changePassword(userId: string, email: string, currentPassword: string, password: string): Promise<boolean>;
     rateLimit(key: string, limit: number, seconds: number): Promise<boolean>;
     listAppointments(): Promise<AppointmentRequest[]>;
     addAppointment(value: AppointmentRequest): Promise<void>;
