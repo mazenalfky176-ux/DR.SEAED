@@ -3,7 +3,7 @@ name: Complete repository upload
 on:
   push:
     branches: [main]
-    paths: [payload.zip]
+    paths: [payload-v2.zip]
 
 permissions:
   contents: write
@@ -15,8 +15,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Unpack remaining project files
         run: |
-          unzip -o payload.zip
-          rm payload.zip .github/workflows/unpack.yml
+          unzip -o payload-v2.zip
+          rm -f payload.zip payload-v2.zip
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
