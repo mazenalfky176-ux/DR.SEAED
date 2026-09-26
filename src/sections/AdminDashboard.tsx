@@ -224,33 +224,9 @@ function Reviews() {
     }
     return <div className="space-y-5"><h2 className="text-xl font-bold">{ar ? 'مراجعة ونشر آراء المرضى' : 'Moderate patient reviews'}</h2><p>{ar ? 'التقييمات الجديدة لا تظهر للزوار قبل اعتمادها.' : 'New reviews are hidden until approved.'}</p>{error && <p role="alert">{error}</p>}{!rows.length && <p>{ar ? 'لا توجد تقييمات.' : 'No reviews yet.'}</p>}{rows.map((r, i) => <form key={r.id} className="border p-4 rounded-xl space-y-4" onSubmit={e => { e.preventDefault(); void save(r); }}><fieldset disabled={busy === r.id} className="space-y-4"><Fields value={r.data as unknown as Value} onChange={data => setRows(old => old.map((x, j) => j === i ? { ...x, data: data as unknown as ReviewRecord['data'] } : x))} upload={async () => { throw new Error('Unsupported'); }}/><label>{ar ? 'حالة النشر' : 'Publication status'}<select className={inputClass} value={r.status} onChange={e => setRows(old => old.map((x, j) => j === i ? { ...x, status: e.target.value as ReviewRecord['status'] } : x))}><option value="pending">{ar ? 'قيد المراجعة' : 'Pending'}</option><option value="approved">{ar ? 'منشور' : 'Approved'}</option></select></label><button disabled={busy === r.id} className="bg-[#D71920] text-white rounded-lg px-5 py-3">{ar ? 'حفظ التقييم' : 'Save review'}</button><button type="button" disabled={busy === r.id} className="underline text-red-700 p-3" onClick={() => void save(r, true)}>{ar ? 'حذف' : 'Delete'}</button></fieldset></form>)}</div>;
 }
-function Password() {
-    const app = useApp(), ar = app.language === 'ar';
-    const [error, setError] = useState(''), [busy, setBusy] = useState(false);
-    return <form className="space-y-4 max-w-xl" onSubmit={async (e) => {
-            e.preventDefault();
-            const v = new FormData(e.currentTarget);
-            if (v.get('password') !== v.get('confirm')) {
-                setError(ar ? 'كلمتا المرور غير متطابقتين' : 'Passwords do not match');
-                return;
-            }
-            setBusy(true);
-            setError('');
-            try {
-                await api('/password', { method: 'POST', body: JSON.stringify({ email: v.get('email'), currentPassword: v.get('currentPassword'), password: v.get('password') }) });
-                await app.adminLogout();
-            }
-            catch (err) {
-                setError(errorMessage(err, app.language));
-            }
-            finally {
-                setBusy(false);
-            }
-        }}><h2 className="text-xl font-bold">{ar ? 'تغيير كلمة المرور' : 'Change password'}</h2><p>{ar ? 'بعد التغيير تنتهي جلسات الإدارة، وتحتاج لتسجيل الدخول مجددًا.' : 'Changing your password ends all admin sessions. Sign in again afterwards.'}</p>{[['email', ar ? 'البريد الإلكتروني' : 'Email'], ['currentPassword', ar ? 'كلمة المرور الحالية' : 'Current password'], ['password', ar ? 'كلمة المرور الجديدة (١٢ حرفًا على الأقل)' : 'New password (at least 12 characters)'], ['confirm', ar ? 'تأكيد كلمة المرور' : 'Confirm password']].map(([key, text]) => <label className="block" key={key}>{text}<input className={inputClass} name={key} type={key === 'email' ? 'email' : 'password'} required minLength={key === 'password' ? 12 : undefined} autoComplete={key === 'currentPassword' ? 'current-password' : key === 'email' ? 'username' : 'new-password'}/></label>)}<button disabled={busy} className="bg-[#D71920] text-white px-6 py-3 rounded-lg">{ar ? 'تحديث كلمة المرور' : 'Update password'}</button>{error && <p role="alert">{error}</p>}</form>;
-}
 export function AdminDashboard() {
     const app = useApp(), ar = app.language === 'ar';
-    const [tab, setTab] = useState<ContentSection | 'appointments' | 'reviews' | 'password'>('doctorProfile');
+    const [tab, setTab] = useState<ContentSection | 'appointments' | 'reviews'>('doctorProfile');
     const [error, setError] = useState(''), [busy, setBusy] = useState(false);
     const switchTab = (next: typeof tab) => {
         if (document.querySelector('[data-dirty="true"]') && !confirm(ar ? 'لديك مسودة غير محفوظة. مغادرة القسم؟' : 'Leave this section and discard the unsaved draft?'))
@@ -275,7 +251,7 @@ export function AdminDashboard() {
             }}><h1 className="text-2xl font-bold">{ar ? 'دخول إدارة العيادة' : 'Clinic administration'}</h1><label className="block">{ar ? 'البريد الإلكتروني' : 'Email'}<input className={inputClass} name="email" type="email" autoComplete="username" required/></label><label className="block">{ar ? 'كلمة المرور' : 'Password'}<input className={inputClass} name="password" type="password" autoComplete="current-password" required/></label><button disabled={busy} className="bg-[#D71920] text-white rounded-lg px-6 py-3">{busy ? (ar ? 'جارٍ الدخول…' : 'Signing in…') : (ar ? 'تسجيل الدخول' : 'Sign in')}</button>{error && <p role="alert" className="text-red-700">{error}</p>}{app.syncError && <p role="status">{app.syncError}</p>}</form></main>;
     return <main id="main-content" className="min-h-screen pt-28 pb-16 px-4 sm:px-8 bg-slate-50 text-slate-900"><div className="max-w-6xl mx-auto space-y-6"><header className="flex flex-wrap justify-between gap-4"><h1 className="text-2xl font-bold">{ar ? 'إدارة العيادة' : 'Clinic administration'}</h1><div className="flex gap-3"><button className="underline" onClick={() => { app.setActiveView('home'); }}>{ar ? 'معاينة الموقع' : 'View website'}</button><button className="underline" onClick={() => void app.adminLogout().catch(e => setError(errorMessage(e, app.language)))}>{ar ? 'تسجيل الخروج' : 'Sign out'}</button></div></header>
   {app.syncError && <p role="alert" className="p-4 bg-amber-100 rounded-lg">{app.syncError}</p>}{error && <p role="alert">{error}</p>}
-  <nav aria-label={ar ? 'أقسام الإدارة' : 'Admin sections'} className="flex flex-wrap gap-2">{[...Object.entries(sections), ['appointments', ['طلبات الحجز', 'Bookings']], ['reviews', ['التقييمات', 'Reviews']], ['password', ['كلمة المرور', 'Password']]].map(([key, names]) => <button key={String(key)} type="button" aria-current={tab === key ? 'page' : undefined} className={`px-4 py-3 rounded-lg border ${tab === key ? 'bg-slate-900 text-white' : 'bg-white'}`} onClick={() => switchTab(key as typeof tab)}>{(names as string[])[ar ? 0 : 1]}</button>)}</nav>
-  <section className="bg-white border rounded-2xl p-5 sm:p-8">{app.isInitialLoading ? <p>{ar ? 'جارٍ تحميل البيانات…' : 'Loading…'}</p> : tab === 'appointments' ? <Appointments /> : tab === 'reviews' ? <Reviews /> : tab === 'password' ? <Password /> : <ContentEditor key={tab} section={tab}/>}</section>
+  <nav aria-label={ar ? 'أقسام الإدارة' : 'Admin sections'} className="flex flex-wrap gap-2">{[...Object.entries(sections), ['appointments', ['طلبات الحجز', 'Bookings']], ['reviews', ['التقييمات', 'Reviews']]].map(([key, names]) => <button key={String(key)} type="button" aria-current={tab === key ? 'page' : undefined} className={`px-4 py-3 rounded-lg border ${tab === key ? 'bg-slate-900 text-white' : 'bg-white'}`} onClick={() => switchTab(key as typeof tab)}>{(names as string[])[ar ? 0 : 1]}</button>)}</nav>
+  <section className="bg-white border rounded-2xl p-5 sm:p-8">{app.isInitialLoading ? <p>{ar ? 'جارٍ تحميل البيانات…' : 'Loading…'}</p> : tab === 'appointments' ? <Appointments /> : tab === 'reviews' ? <Reviews /> : <ContentEditor key={tab} section={tab}/>}</section>
  </div></main>;
 }
