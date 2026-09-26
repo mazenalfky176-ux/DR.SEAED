@@ -1,0 +1,158 @@
+import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+test('owner changes reach an independent visitor, failures preserve drafts and mobile dialogs work', async ({ browser }) => {
+    const admin = await browser.newContext(), visitor = await browser.newContext();
+    const page = await admin.newPage(), other = await visitor.newPage();
+    const errors: string[] = [];
+    page.on('pageerror', e => errors.push(e.message));
+    other.on('pageerror', e => errors.push(e.message));
+    await page.goto('/');
+    await page.getByRole('button', { name: 'EN', exact: true }).click();
+    await page.getByTitle('Admin Portal', { exact: true }).click();
+    await page.getByLabel('Email', { exact: true }).fill('owner@example.test');
+    await page.getByLabel('Password', { exact: true }).fill('Test-password-123!');
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Clinic administration' })).toBeVisible();
+    await page.getByLabel('bio En', { exact: true }).fill('Verified shared biography from browser test.');
+    await page.getByRole('button', { name: 'Save & publish section' }).click();
+    await expect(page.getByText('Saved to the server.', { exact: true })).toBeVisible();
+    await other.goto('/');
+    await other.getByRole('button', { name: 'EN', exact: true }).click();
+    await expect(other.getByText('Verified shared biography from browser test.', { exact: true }).first()).toBeVisible();
+    // Expire the cookie while keeping the editor mounted; re-authentication must retain its draft.
+    await admin.request.post('/api/logout', { headers: { Origin: 'http://127.0.0.1:4173' } });
+    await page.getByLabel('bio En', { exact: true }).fill('Draft survives session expiry');
+    await page.getByRole('button', { name: 'Save & publish section' }).click();
+    const renew = page.getByRole('dialog', { name: 'Renew admin session' });
+    await expect(renew).toBeVisible();
+    await renew.getByLabel('Email', { exact: true }).fill('owner@example.test');
+    await renew.getByLabel('Password', { exact: true }).fill('Test-password-123!');
+    await renew.getByRole('button', { name: 'Sign in', exact: true }).click();
+    await expect(renew).toHaveCount(0);
+    await expect(page.getByLabel('bio En', { exact: true })).toHaveValue('Draft survives session expiry');
+    // Failed server save must never become a success or erase the edit.
+    await page.route('**/api/content', async (route) => {
+        if (route.request().method() === 'PATCH')
+            await route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"DATABASE_UNAVAILABLE"}' });
+        else
+            await route.continue();
+    });
+    await page.getByLabel('bio En', { exact: true }).fill('Draft retained after a rejected save');
+    await page.getByRole('button', { name: 'Save & publish section' }).click();
+    await expect(page.getByRole('alert').last()).toBeVisible();
+    await expect(page.getByLabel('bio En', { exact: true })).toHaveValue('Draft retained after a rejected save');
+    await other.reload();
+    await expect(other.getByText('Verified shared biography from browser test.', { exact: true }).first()).toBeVisible();
+    await page.unroute('**/api/content');
+    // Another authenticated browser writes a newer version.
+    const shared = await (await admin.request.get('/api/content')).json();
+    const changed = { ...shared.data.doctorProfile, bioAr: 'تعديل من جلسة مستقلة' };
+    expect((await admin.request.patch('/api/content', { headers: { Origin: 'http://127.0.0.1:4173' }, data: { section: 'doctorProfile', value: changed, version: shared.version } })).status()).toBe(200);
+    await page.getByRole('button', { name: 'Save & publish section' }).click();
+    await expect(page.getByLabel('bio En', { exact: true })).toHaveValue('Draft retained after a rejected save');
+    await expect(page.getByRole('alert').last()).toBeVisible();
+    page.on('dialog', d => d.accept());
+    await page.getByRole('button', { name: 'Reload section', exact: true }).click();
+    await expect(page.getByLabel('bio Ar', { exact: true })).toHaveValue('تعديل من جلسة مستقلة');
+    // The supplied JPEG passes through the image endpoint and is committed as a shared URL.
+    await page.locator('input[type=file]').first().setInputFiles('public/doctor-original.jpg');
+    await expect(page.getByRole('button', { name: 'Save & publish section' })).toBeEnabled();
+    await page.getByRole('button', { name: 'Save & publish section' }).click();
+    await expect(page.getByText('Saved to the server.', { exact: true })).toBeVisible();
+    await other.reload();
+    await expect(other.locator('#hero img').first()).toHaveAttribute('src', /\/test-images\//);
+    // Empty lists are valid and survive reload without crashing.
+    let content = await (await admin.request.get('/api/content')).json();
+    for (const section of ['caseStudies', 'services', 'technology', 'journey']) {
+        const r = await admin.request.patch('/api/content', { headers: { Origin: 'http://127.0.0.1:4173' }, data: { section, value: [], version: content.version } });
+        expect(r.status()).toBe(200);
+        content = await r.json();
+    }
+    await other.reload();
+    await expect(other.locator('main')).toBeVisible();
+    expect(await visitor.request.get('/api/appointments').then(r => r.status())).toBe(401);
+    await other.setViewportSize({ width: 390, height: 844 });
+    await other.getByRole('button', { name: 'Open navigation menu' }).click();
+    await expect(other.getByRole('dialog')).toBeVisible();
+    await other.keyboard.press('Tab');
+    expect(await other.evaluate(() => !!document.activeElement?.closest('[role=dialog]'))).toBe(true);
+    await other.keyboard.press('Escape');
+    await expect(other.getByRole('dialog')).toHaveCount(0);
+    await other.getByRole('button', { name: 'AR', exact: true }).click();
+    await expect(other.locator('html')).toHaveAttribute('dir', 'rtl');
+    expect(await other.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await other.screenshot({ path: 'test-results/mobile-ar.png', fullPage: true });
+    await page.screenshot({ path: 'test-results/admin-en.png', fullPage: true });
+    expect(errors).toEqual([]);
+    await admin.close();
+    await visitor.close();
+});
+test('booking travels from visitor to admin, review needs approval, and schedule is shared', async ({ browser }) => {
+    const admin = await browser.newContext(), visitor = await browser.newContext();
+    const page = await admin.newPage(), other = await visitor.newPage();
+    const headers = { Origin: 'http://127.0.0.1:4173' };
+    expect((await admin.request.post('/api/login', { headers, data: { email: 'owner@example.test', password: 'Test-password-123!' } })).status()).toBe(200);
+    const defaults = JSON.parse(readFileSync('shared/default-content.json', 'utf8'));
+    let saved = await (await admin.request.get('/api/content')).json();
+    for (const [section, value] of Object.entries(defaults)) {
+        const r = await admin.request.patch('/api/content', { headers, data: { section, value, version: saved.version } });
+        expect(r.status()).toBe(200);
+        saved = await r.json();
+    }
+    const contact = { ...saved.data.clinicContact, whatsapp: '01012345678', schedule: { days: [0, 1, 2, 3, 4, 5, 6], open: '14:00', close: '16:00', slotMinutes: 30 } };
+    expect((await admin.request.patch('/api/content', { headers, data: { section: 'clinicContact', value: contact, version: saved.version } })).status()).toBe(200);
+    await page.goto('/');
+    await page.getByRole('button', { name: 'EN', exact: true }).click();
+    await page.getByTitle('Admin Portal', { exact: true }).click();
+    await page.getByRole('button', { name: 'Bookings', exact: true }).click();
+    await expect(page.getByText('No matching requests.')).toBeVisible();
+    await other.goto('/');
+    await other.getByRole('button', { name: 'EN', exact: true }).click();
+    await other.locator('#booking-patientName').fill('Browser synthetic patient');
+    await other.locator('#booking-age').fill('35');
+    await other.locator('#booking-phone').fill('01000000000');
+    await other.locator('#booking-email').fill('patient@example.test');
+    await other.locator('#booking-complaint').fill('Synthetic complaint');
+    await other.locator('#booking-treatment').selectOption('consultation');
+    await other.locator('#booking-date').fill(new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10));
+    await other.locator('#booking-time').selectOption('14:30');
+    await other.getByRole('button', { name: 'Submit appointment request' }).click();
+    await expect(other.getByText('Your request has been saved')).toBeVisible();
+    await expect(other.getByRole('link', { name: 'Follow up on WhatsApp' })).toHaveAttribute('href', /^https:\/\/wa.me\/201012345678/);
+    await expect(page.getByRole('heading', { name: 'Browser synthetic patient' })).toBeVisible({ timeout: 22000 });
+    await expect(page.getByText('Synthetic complaint')).toBeVisible();
+    await page.getByRole('combobox', { name: 'Status', exact: true }).selectOption('Confirmed');
+    await expect(page.getByRole('combobox', { name: 'Status', exact: true })).toHaveValue('Confirmed');
+    await other.getByRole('button', { name: 'Leave a Patient Review' }).click();
+    const dialog = other.getByRole('dialog');
+    await dialog.getByLabel('Name', { exact: true }).fill('Browser reviewer');
+    await dialog.getByLabel('Your experience', { exact: true }).fill('A synthetic review requiring moderation.');
+    await dialog.getByRole('button', { name: 'Submit for moderation' }).click();
+    await expect(dialog.getByText('Your review was received and will appear after moderation.')).toBeVisible();
+    await other.keyboard.press('Escape');
+    expect((await (await visitor.request.get('/api/content')).json()).data.testimonials).toHaveLength(0);
+    await page.getByRole('navigation', { name: 'Admin sections' }).getByRole('button', { name: 'Reviews', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Publication status' }).selectOption('approved');
+    await page.getByRole('button', { name: 'Save review', exact: true }).click();
+    await expect.poll(async () => (await (await visitor.request.get('/api/content')).json()).data.testimonials.length).toBe(1);
+    await other.reload();
+    await expect(other.getByText('A synthetic review requiring moderation.')).toBeVisible();
+    await other.getByRole('button', { name: 'AR', exact: true }).click();
+    await other.setViewportSize({ width: 390, height: 844 });
+    await other.locator('#hero img').first().scrollIntoViewIfNeeded();
+    await expect.poll(() => other.locator('#hero img').first().evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+    await other.evaluate(() => scrollTo(0,0)); await other.waitForTimeout(1000); await other.screenshot({ path: 'test-results/mobile-final.png' });
+    await other.setViewportSize({ width: 1440, height: 1000 });
+    await other.evaluate(() => scrollTo(0, 0));
+    await other.waitForTimeout(1000); await other.screenshot({ path: 'test-results/desktop-final.png' });
+    await page.getByRole('button', { name: 'Password', exact: true }).click();
+    await page.getByLabel('Email', { exact: true }).fill('owner@example.test');
+    await page.getByLabel('Current password').fill('Test-password-123!');
+    await page.getByLabel('New password (at least 12 characters)').fill('New-browser-password-123!');
+    await page.getByLabel('Confirm password').fill('New-browser-password-123!');
+    await page.getByRole('button', { name: 'Update password' }).click();
+    await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();
+    expect((await admin.request.get('/api/appointments')).status()).toBe(401);
+    await admin.close();
+    await visitor.close();
+});
