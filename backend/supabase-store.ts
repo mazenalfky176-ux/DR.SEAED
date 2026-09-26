@@ -5,7 +5,7 @@ import type { Store, Environment, ContentRow } from './contracts';
 import { ApiError } from './contracts';
 import type { AppointmentRequest, ReviewRecord } from '../src/types';
 export function createStore(env: Environment): Store {
-    if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY || !env.ADMIN_USER_ID)
+    if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY || !env.ADMIN_USER_ID || !env.ADMIN_EMAIL || !env.ADMIN_PASSWORD)
         throw new ApiError(503, 'NOT_CONFIGURED');
     const client = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(12000) }) } });
     const check = (error: unknown) => {
@@ -39,14 +39,10 @@ export function createStore(env: Environment): Store {
             return result.data as ContentRow | null;
         },
         async login(email, password) {
-            const auth = createClient(env.SUPABASE_URL!, env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false, autoRefreshToken: false } });
-            const { data, error } = await auth.auth.signInWithPassword({ email, password });
-            if (error || !data.user || data.user.id !== env.ADMIN_USER_ID)
+            const normalize = (value: string) => value.trim().toLowerCase();
+            if (normalize(email) !== normalize(env.ADMIN_EMAIL!) || password !== env.ADMIN_PASSWORD)
                 return null;
-            // This application uses its own revocable, opaque server session. Do not expose Supabase tokens.
-            if (data.session)
-                await client.auth.admin.signOut(data.session.access_token, 'local');
-            return data.user.id;
+            return env.ADMIN_USER_ID!;
         },
         async createSession(token_hash, user_id, expires_at) {
             const cleanup = await client.from('clinic_sessions').delete().lt('expires_at', new Date().toISOString());
@@ -70,15 +66,6 @@ export function createStore(env: Environment): Store {
             return { userId: data.user_id, expiresAt: data.expires_at };
         },
         async deleteSession(hash) { const { error } = await client.from('clinic_sessions').delete().eq('token_hash', hash); check(error); },
-        async changePassword(userId, email, currentPassword, password) {
-            if (await this.login(email, currentPassword) !== userId)
-                return false;
-            const { error } = await client.auth.admin.updateUserById(userId, { password });
-            check(error);
-            const revoke = await client.from('clinic_sessions').delete().eq('user_id', userId);
-            check(revoke.error);
-            return true;
-        },
         async rateLimit(key, limit, seconds) { const { data, error } = await client.rpc('clinic_rate_limit', { request_key: key, max_count: limit, window_seconds: seconds }); check(error); return data === true; },
         async listAppointments() { const { data, error } = await client.from('clinic_appointments').select('*').order('created_at', { ascending: false }).limit(2000); check(error); return (data || []).map(appointment); },
         async addAppointment(value) {
