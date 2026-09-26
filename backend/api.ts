@@ -115,18 +115,11 @@ export async function handleApi(req: Request, env: Environment, injected?: Store
             await store.addReview({ id: v.id, status: 'pending', version: 1, createdAt: new Date().toISOString(), data: { id: v.id, patientNameEn: v.name, patientNameAr: v.name, treatmentEn: treatment?.nameEn || 'Consultation', treatmentAr: treatment?.nameAr || 'استشارة', reviewEn: v.review, reviewAr: v.review, rating: v.rating, isDemo: false } });
             return json({ success: true }, 201);
         }
-        if (!['/api/session', '/api/password', '/api/content', '/api/image', '/api/appointments', '/api/reviews'].some(p => pathname === p || pathname.startsWith(p + '/')))
+        if (!['/api/session', '/api/content', '/api/image', '/api/appointments', '/api/reviews'].some(p => pathname === p || pathname.startsWith(p + '/')))
             throw new ApiError(404, 'NOT_FOUND');
         const session = await requireAdmin();
         if (pathname === '/api/session' && method === 'GET')
             return json({ authenticated: true, expiresAt: session.expiresAt });
-        if (pathname === '/api/password' && method === 'POST') {
-            await limit('password', 5, 600);
-            const v = z.object({ email: z.string().email(), currentPassword: z.string().min(1).max(200), password: z.string().min(12).max(200) }).strict().parse(await body(req));
-            if (!await store.changePassword(session.userId, v.email, v.currentPassword, v.password))
-                throw new ApiError(401, 'INVALID_LOGIN');
-            return json({ success: true }, 200, { 'Set-Cookie': sessionCookie(req, '', 0) });
-        }
         if (pathname === '/api/content' && method === 'PATCH') {
             const value = z.object({ section: z.enum(Object.keys(contentSchema.shape) as [
                     keyof ContentData,
