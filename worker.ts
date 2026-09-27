@@ -44,17 +44,6 @@ function sitemap(request: Request, env: WorkerEnvironment) {
 export default {
     async fetch(request: Request, env: WorkerEnvironment): Promise<Response> {
         const pathname = new URL(request.url).pathname;
-        if (pathname === '/api/_health') {
-            return new Response(JSON.stringify({
-                configured: {
-                    supabaseUrl: Boolean(env.SUPABASE_URL),
-                    serviceRole: Boolean(env.SUPABASE_SERVICE_ROLE_KEY),
-                    adminUser: Boolean(env.ADMIN_USER_ID),
-                },
-            }), {
-                headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
-            });
-        }
         if (pathname === '/api' || pathname.startsWith('/api/'))
             return handleApi(request, env);
         if (pathname === '/sitemap.xml')
