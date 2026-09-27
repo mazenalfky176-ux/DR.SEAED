@@ -27,7 +27,7 @@
     "functions",
     "server.ts",
     "vite.config.ts",
-    "tests", "scripts",
+    "tests", "scripts", "worker.ts",
     "playwright.config.ts"
   ]
 }
