@@ -4,6 +4,11 @@
   "main": "worker.ts",
   "compatibility_date": "2026-09-25",
   "keep_vars": true,
+  "secrets": {
+    "required": [
+      "SUPABASE_SERVICE_ROLE_KEY"
+    ]
+  },
   "vars": {
     "SUPABASE_URL": "https://ksdjiwayopompelalqvx.supabase.co",
     "ADMIN_USER_ID": "929d18a0-9d02-4d9f-80f6-adadd15fdbd1",
