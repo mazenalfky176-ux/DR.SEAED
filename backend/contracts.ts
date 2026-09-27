@@ -20,7 +20,7 @@ export interface Store {
     createSession(hash: string, userId: string, expiresAt: string): Promise<void>;
     readSession(hash: string): Promise<AuthSession | null>;
     deleteSession(hash: string): Promise<void>;
-    changePassword?(userId: string, email: string, currentPassword: string, password: string): Promise<boolean>;
+    changePassword(userId: string, email: string, currentPassword: string, password: string): Promise<boolean>;
     rateLimit(key: string, limit: number, seconds: number): Promise<boolean>;
     listAppointments(): Promise<AppointmentRequest[]>;
     addAppointment(value: AppointmentRequest): Promise<void>;
