@@ -12,9 +12,9 @@ const secretsFile = join(tmpdir(), `dr-seaed-worker-secrets-${process.pid}.json`
 await writeFile(secretsFile, JSON.stringify({ SUPABASE_SERVICE_ROLE_KEY: key }), { mode: 0o600 });
 
 try {
-    const command = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+    const command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
     const exitCode = await new Promise((resolve, reject) => {
-        const child = spawn(command, ['exec', 'wrangler', 'deploy', '--secrets-file', secretsFile], {
+        const child = spawn(command, ['--yes', 'wrangler@4.142.0', 'deploy', '--secrets-file', secretsFile], {
             stdio: 'inherit',
             env: process.env,
         });
