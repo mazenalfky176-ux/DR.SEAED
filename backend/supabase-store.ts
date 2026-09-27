@@ -70,6 +70,15 @@ export function createStore(env: Environment): Store {
             return { userId: data.user_id, expiresAt: data.expires_at };
         },
         async deleteSession(hash) { const { error } = await client.from('clinic_sessions').delete().eq('token_hash', hash); check(error); },
+        async changePassword(userId, email, currentPassword, password) {
+            if (await this.login(email, currentPassword) !== userId)
+                return false;
+            const { error } = await client.auth.admin.updateUserById(userId, { password });
+            check(error);
+            const revoke = await client.from('clinic_sessions').delete().eq('user_id', userId);
+            check(revoke.error);
+            return true;
+        },
         async rateLimit(key, limit, seconds) { const { data, error } = await client.rpc('clinic_rate_limit', { request_key: key, max_count: limit, window_seconds: seconds }); check(error); return data === true; },
         async listAppointments() { const { data, error } = await client.from('clinic_appointments').select('*').order('created_at', { ascending: false }).limit(2000); check(error); return (data || []).map(appointment); },
         async addAppointment(value) {
