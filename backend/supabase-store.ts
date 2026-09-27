@@ -5,7 +5,7 @@ import type { Store, Environment, ContentRow } from './contracts';
 import { ApiError } from './contracts';
 import type { AppointmentRequest, ReviewRecord } from '../src/types';
 export function createStore(env: Environment): Store {
-    if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY || !env.ADMIN_USER_ID || !env.ADMIN_EMAIL || !env.ADMIN_PASSWORD)
+    if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY || !env.ADMIN_USER_ID)
         throw new ApiError(503, 'NOT_CONFIGURED');
     const client = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(12000) }) } });
     const check = (error: unknown) => {
@@ -39,10 +39,14 @@ export function createStore(env: Environment): Store {
             return result.data as ContentRow | null;
         },
         async login(email, password) {
-            const normalize = (value: string) => value.trim().toLowerCase();
-            if (normalize(email) !== normalize(env.ADMIN_EMAIL!) || password !== env.ADMIN_PASSWORD)
+            const auth = createClient(env.SUPABASE_URL!, env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false, autoRefreshToken: false } });
+            const { data, error } = await auth.auth.signInWithPassword({ email, password });
+            if (error || !data.user || data.user.id !== env.ADMIN_USER_ID)
                 return null;
-            return env.ADMIN_USER_ID!;
+            // This application uses its own revocable, opaque server session. Do not expose Supabase tokens.
+            if (data.session)
+                await client.auth.admin.signOut(data.session.access_token, 'local');
+            return data.user.id;
         },
         async createSession(token_hash, user_id, expires_at) {
             const cleanup = await client.from('clinic_sessions').delete().lt('expires_at', new Date().toISOString());
