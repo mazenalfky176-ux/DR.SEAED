@@ -3,6 +3,12 @@
   "name": "dr-seaed",
   "main": "worker.ts",
   "compatibility_date": "2026-09-25",
+  "keep_vars": true,
+  "vars": {
+    "SUPABASE_URL": "https://ksdjiwayopompelalqvx.supabase.co",
+    "ADMIN_USER_ID": "929d18a0-9d02-4d9f-80f6-adadd15fdbd1",
+    "PUBLIC_SITE_URL": "https://dr-seaed.mazenalfky176.workers.dev"
+  },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",

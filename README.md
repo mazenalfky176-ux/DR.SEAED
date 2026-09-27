@@ -38,6 +38,7 @@ pnpm exec tsx scripts/import-legacy.ts --apply
 - Root directory: جذر هذا المشروع
 - Runtime variables and secrets: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_USER_ID`, `PUBLIC_SITE_URL`.
 - ضع القيم في إعدادات Worker runtime بعد أول نشر ثم أعد النشر.
+- يحتفظ `keep_vars` بالأسرار المضافة من لوحة Cloudflare عند كل نشر آلي لاحق.
 - `PUBLIC_SITE_URL` هو الدومين HTTPS الأساسي بلا مسار. حوّل الدومينات البديلة إليه؛ العمليات المعدلة من origin مختلف تُرفض لحماية الجلسات.
 - استخدم قاعدة منفصلة وحساب اختبار للـPreview، مع origin مطابق لرابطه. لا تستخدم بيانات المرضى في المعاينة.
 - إعداد `run_worker_first` في `wrangler.jsonc` يشغّل الـAPI والصفحة الرئيسية لبيانات المشاركة و`sitemap.xml`. لا تضف تحويلًا عامًا يجعل API يرجع HTML.
