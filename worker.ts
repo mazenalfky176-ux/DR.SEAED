@@ -41,6 +41,13 @@ function sitemap(request: Request, env: WorkerEnvironment) {
     );
 }
 
+function robots(request: Request, env: WorkerEnvironment) {
+    const origin = new URL(env.PUBLIC_SITE_URL || request.url).origin;
+    return new Response(`User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: ${origin}/sitemap.xml\n`, {
+        headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' },
+    });
+}
+
 export default {
     async fetch(request: Request, env: WorkerEnvironment): Promise<Response> {
         const pathname = new URL(request.url).pathname;
@@ -48,6 +55,8 @@ export default {
             return handleApi(request, env);
         if (pathname === '/sitemap.xml')
             return sitemap(request, env);
+        if (pathname === '/robots.txt')
+            return robots(request, env);
         if (pathname === '/')
             return serveHome(request, env);
         return env.ASSETS.fetch(request);
