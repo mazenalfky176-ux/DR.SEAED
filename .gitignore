@@ -11,3 +11,4 @@ coverage/
 .wrangler/
 playwright-report/
 test-results/
+.codex-test-build/
